@@ -27,7 +27,7 @@ var (
 	proxyRequestData = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Name: "proxy_request_data",
 		Help: "Proxy request data in bytes",
-	}, []string{"request_type", "direction"})
+	}, []string{"request_type", "direction", "hostname"})
 
 	proxyNumberOfIncommingConnections = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Name: "proxy_number_of_incomming_connections",
@@ -60,9 +60,12 @@ type Conn struct {
 func (c Conn) Read(b []byte) (n int, err error) {
 	count, err := c.Conn.Read(b)
 
-	proxyRequestData.MustCurryWith(prometheus.Labels{
-		"request_type": c.Context.RequestType(),
-	}).WithLabelValues("received").Add(float64(count))
+	go func() {
+		proxyRequestData.MustCurryWith(prometheus.Labels{
+			"request_type": c.Context.RequestType(),
+			"hostname":     c.Context.WaitHostname(),
+		}).WithLabelValues("received").Add(float64(count))
+	}()
 
 	return count, err
 }
@@ -71,9 +74,12 @@ func (c Conn) Read(b []byte) (n int, err error) {
 func (c Conn) Write(b []byte) (n int, err error) {
 	count, err := c.Conn.Write(b)
 
-	proxyRequestData.MustCurryWith(prometheus.Labels{
-		"request_type": c.Context.RequestType(),
-	}).WithLabelValues("sent").Add(float64(count))
+	go func() {
+		proxyRequestData.MustCurryWith(prometheus.Labels{
+			"request_type": c.Context.RequestType(),
+			"hostname":     c.Context.WaitHostname(),
+		}).WithLabelValues("sent").Add(float64(count))
+	}()
 
 	return count, err
 }
