@@ -18,7 +18,6 @@
 package metrics
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -80,8 +79,6 @@ func (s *service) ProxyHandlerMiddleware(next func(c *proxy.Context)) func(c *pr
 		}()
 
 		next(c)
-
-		fmt.Println("DestinationHostNormalized2", c.Hostname())
 
 		s.proxyNumberOfLiveConnections.With(prometheus.Labels{
 			"request_type": c.RequestType(),
