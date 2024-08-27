@@ -20,13 +20,14 @@ package metrics
 import (
 	"time"
 
-	"github.com/mysteriumnetwork/openvpn-forwarder/proxy"
 	"github.com/prometheus/client_golang/prometheus"
+
+	"github.com/mysteriumnetwork/openvpn-forwarder/proxy"
 )
 
 type service struct {
 	proxyRequestDuration              *prometheus.HistogramVec
-	proxyNumberOfLiveConnecions       *prometheus.GaugeVec
+	proxyNumberOfLiveConnections      *prometheus.GaugeVec
 	proxyNumberOfProcessedConnections *prometheus.CounterVec
 }
 
@@ -35,7 +36,7 @@ func NewMetricsService() (*service, error) {
 	proxyRequestDuration := prometheus.NewHistogramVec(prometheus.HistogramOpts{
 		Name: "proxy_request_duration",
 		Help: "Proxy request duration in seconds",
-	}, []string{"request_type"})
+	}, []string{"request_type", "hostname"})
 
 	if err := prometheus.Register(proxyRequestDuration); err != nil {
 		return nil, err
@@ -44,7 +45,7 @@ func NewMetricsService() (*service, error) {
 	proxyNumberOfLiveConnections := prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "proxy_number_of_live_connections",
 		Help: "Number of currently live connections",
-	}, []string{"request_type"})
+	}, []string{"request_type", "hostname"})
 
 	if err := prometheus.Register(proxyNumberOfLiveConnections); err != nil {
 		return nil, err
@@ -53,7 +54,7 @@ func NewMetricsService() (*service, error) {
 	proxyNumberOfProcessedConnections := prometheus.NewCounterVec(prometheus.CounterOpts{
 		Name: "proxy_number_of_processed_connections",
 		Help: "Number of incoming connections which were successfully assigned and processed",
-	}, []string{"request_type"})
+	}, []string{"request_type", "hostname"})
 
 	if err := prometheus.Register(proxyNumberOfProcessedConnections); err != nil {
 		return nil, err
@@ -61,7 +62,7 @@ func NewMetricsService() (*service, error) {
 
 	return &service{
 		proxyRequestDuration:              proxyRequestDuration,
-		proxyNumberOfLiveConnecions:       proxyNumberOfLiveConnections,
+		proxyNumberOfLiveConnections:      proxyNumberOfLiveConnections,
 		proxyNumberOfProcessedConnections: proxyNumberOfProcessedConnections,
 	}, nil
 }
@@ -70,22 +71,28 @@ func (s *service) ProxyHandlerMiddleware(next func(c *proxy.Context)) func(c *pr
 	return func(c *proxy.Context) {
 		startTime := time.Now()
 
-		s.proxyNumberOfLiveConnecions.With(prometheus.Labels{
-			"request_type": c.RequestType(),
-		}).Inc()
+		go func() {
+			s.proxyNumberOfLiveConnections.With(prometheus.Labels{
+				"request_type": c.RequestType(),
+				"hostname":     c.WaitHostname(),
+			}).Inc()
+		}()
 
 		next(c)
 
-		s.proxyNumberOfLiveConnecions.With(prometheus.Labels{
+		s.proxyNumberOfLiveConnections.With(prometheus.Labels{
 			"request_type": c.RequestType(),
+			"hostname":     c.Hostname(),
 		}).Dec()
 
 		s.proxyRequestDuration.With(prometheus.Labels{
 			"request_type": c.RequestType(),
+			"hostname":     c.Hostname(),
 		}).Observe(time.Since(startTime).Seconds())
 
 		s.proxyNumberOfProcessedConnections.With(prometheus.Labels{
 			"request_type": c.RequestType(),
+			"hostname":     c.Hostname(),
 		}).Inc()
 	}
 }

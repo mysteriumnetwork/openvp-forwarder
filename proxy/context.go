@@ -19,6 +19,8 @@ package proxy
 
 import (
 	"net"
+	"regexp"
+	"strings"
 )
 
 // Context is the Proxy context, contains useful information about every request.
@@ -27,11 +29,33 @@ type Context struct {
 	conn            net.Conn
 	connOriginalDst *net.TCPAddr
 
+	hostnameSet        chan struct{}
 	destinationHost    string
 	destinationAddress string
 }
 
 // RequestType HTTP or HTTPS.
-func (c Context) RequestType() string {
+func (c *Context) RequestType() string {
 	return c.scheme
 }
+
+func (c *Context) setHost(host string) {
+	c.destinationHost = host
+	close(c.hostnameSet)
+}
+
+// WaitHostname waits for hostname to be set and returns it.
+func (c *Context) WaitHostname() string {
+	<-c.hostnameSet
+
+	hostname := hostname.FindString(strings.ToLower(c.destinationHost))
+
+	return hostname
+}
+
+// Hostname returns hostname.
+func (c *Context) Hostname() string {
+	return hostname.FindString(strings.ToLower(c.destinationHost))
+}
+
+var hostname = regexp.MustCompile(`\w+\.\w+$`)

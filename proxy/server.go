@@ -104,7 +104,7 @@ func (s *proxyServer) handler(l net.Listener, f func(c *Context), scheme string)
 
 	for {
 		conn, err := l.Accept()
-		c := Context{}
+		c := Context{hostnameSet: make(chan struct{})}
 		c.scheme = scheme
 		c.conn = NewConn(conn, &c)
 
@@ -166,7 +166,7 @@ func (s *proxyServer) serveHTTP(c *Context) {
 		return
 	}
 
-	c.destinationHost = req.Host
+	c.setHost(req.Host)
 	c.destinationAddress = s.authorityAddr("http", c.destinationHost)
 	s.logAccess("HTTP request", c)
 
@@ -227,10 +227,10 @@ func (s *proxyServer) serveTLS(c *Context) {
 			return
 		}
 
-		c.destinationHost = tlsConn.Host() + ":" + port
+		c.setHost(tlsConn.Host() + ":" + port)
 		c.destinationAddress = s.authorityAddr("https", c.destinationHost)
 	} else if c.connOriginalDst != nil {
-		c.destinationHost = ""
+		c.setHost("")
 		c.destinationAddress = c.connOriginalDst.String()
 		s.logWarn("Cannon parse SNI in TLS request", c)
 	} else {
